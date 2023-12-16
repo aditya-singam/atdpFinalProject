@@ -1,0 +1,175 @@
+---
+title: "Final Project: Predicting Video Game Sales"
+output: html_notebook
+---
+
+The purpose of this machine learning model is to predict the sales of games globally
+
+
+Firstly, we have to install all of the necessary packages. 'dplyr', to assist in data manipulation; 'ggplot2', to help visualize our data;  'caret' to allow us to train our machine learning models.
+
+Installations:
+```{r}
+install.packages("dplyr") 
+library(dplyr)
+install.packages("ggplot2")
+library(ggplot2)
+install.packages("caret")
+library(caret)
+install.packages("tidyr")
+library(tidyr)
+```
+
+Data Preprocessing:
+
+We first load in the the game sales data set:
+```{r}
+
+working_directory <- setwd("/Users/adityasingampalli/Downloads/archive")
+getwd()
+ps4_set <- read.csv("Downloads/archive/PS4_GamesSales.csv")
+View(ps4_set) 
+```
+
+```{r}
+dim(ps4_set)
+var_names <- names(ps4_set)
+print(var_names)
+str(ps4_set)
+```
+Checking for any missing values, which have to be resolved if present. 
+```{r}
+colSums(is.na(ps4_set))
+```
+
+
+
+
+Converting the year column from numbers embedded in strings to numeric values as well as removing any rows in the dataset where missing values are present. 
+```{r}
+
+
+ps4_set$Year <- as.numeric(ps4_set$Year) # converts string to numeric data
+ps4_data <- na.omit(ps4_set) # removed rows with missing values
+
+sum(colSums(is.na(ps4_data))) # Makes sure that there are no more missing values
+
+```
+
+Exploratory Data Analysis (EDA): 
+
+Relationship between year and # of games released that year as modeled by a histogram 
+```{r}
+ggplot(ps4_data, aes(x = Year)) + 
+  geom_bar(fill = "black") +
+  labs(title = "Distribution of games over the years",
+       x = "Year", y = "Frequency")
+```
+
+
+Scatterplot plotting units sold in japan vs in europe 
+```{r}
+ggplot(data = ps4_data, aes(x = Japan,y = Europe)) + geom_point()
+```
+
+
+Feature Engineering:
+
+Turned the genre column from categorical, to numerical values, using a one-hot encoding method. 
+```{r}
+ps4_encoded <- cbind(ps4_data[,-which(names(ps4_data) == "Genre")], model.matrix(~ Genre - 1, data = ps4_data))
+print(ps4_encoded)
+```
+
+Model Training and Evaluation: 
+
+Creating Training Dataset and Test Dataset
+```{r}
+
+set.seed(45)
+
+# Get the number of rows in the dataframe
+
+num_rows <- nrow(ps4_data)
+
+# Generate a random index for splitting the data (80% train, 20% test)
+
+train_index <- sample(1:num_rows, floor(0.7 * num_rows))
+
+# Split the data into training and testing sets
+
+train_ps4 <- ps4_data[train_index, ]
+test_ps4 <- ps4_data[-train_index, ]
+```
+
+
+Linear regression model: 
+```{r}
+# Creates the linear regression model 
+
+ps4_model <- lm(Rest.of.World ~ North.America, data = train_ps4)
+summary(ps4_model)
+# Makes predictions from the fitted linear regression model 
+
+predicted_values <- predict(ps4_model, newdata = test_ps4)
+
+#Visualizes the relationship 
+
+ ggplot(ps4_data, aes(x = North.America, y = Rest.of.World)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", lwd = 1, col = "red") + 
+  ggtitle("Games sold in North America vs the rest of the world") + 
+  xlab("Games sold in North America (in million)") + 
+  ylab("Games sold in the rest of the world (in million)") + 
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5, size = 20))
+```
+
+
+Interpreting the Model and accuracy:
+```{r}
+# Calculating the accuracy of the regression model based on the r^2 value 
+
+summary_model <- summary(ps4_model)
+r_squared <- summary_model$r.squared
+print(r_squared)
+# Calculating the accuracy of the regression model based on 
+mse <- mean((test_ps4$Rest.of.World - predicted_values)^2)
+print(mse)
+```
+
+
+
+Fine-tuning the model:
+
+Using the caret package, we tune the model by performing 5-fold cross-validation. In addition, we added an extra predictor variable which improved the r^2 and mse score slightly.
+```{r}
+#tune_grid <- expand.grid(alpha = 1, lambda = seq(0, 1, by = 0.1))
+ctrl <- trainControl(method = "cv", number = 5)  # 5-fold cross-validation
+
+# Perform model tuning using cross-validation
+tuned_model <- train(
+  Rest.of.World ~ North.America + Japan,
+  data = train_ps4,
+  method = "lm",
+  trControl = ctrl
+)
+
+print(tuned_model)
+
+predicted_tuned <- predict(tuned_model, newdata = test_ps4)
+
+summary(tuned_model)
+
+r_squared2 <- summary(tuned_model)$r.squared # r^2 value
+print(r_squared2)
+
+mse_2 <- mean((test_ps4$Rest.of.World - predicted_tuned)^2) # mean sqaured error 
+print(mse_2)
+```
+
+
+There were quite a few missing values in my data, and since I removed those rows outright, I 
+could have changed how my data looked entirely by reducing the sample size, possible inflation of statistical significance, and overfitting. Overall, finding quality data sets was a bit tricky and it took me some time to even find a large enough one. Still, my model appeared to perform alright and scored pretty well in accuracy.   
+
+
